@@ -7,9 +7,9 @@ import 'package:schoole/models/error_model.dart';
 import 'package:schoole/models/home_model.dart';
 import 'package:schoole/models/login_model.dart';
 import 'package:schoole/network/remote/dio_helper.dart';
-import 'package:schoole/network/remote/end_points.dart';
 
 import '../network/local/cash_helper.dart' show CacheHelper;
+import '../network/remote/end_points.dart';
 
 part 'home_state.dart';
 
@@ -72,7 +72,7 @@ class HomeCubit extends Cubit<HomeState> {
   Future getHomeData() async {
     emit(GetHomeLoadingState());
 
-    DioHelper.getData(url: HOME, token: token).then((value) async {
+    DioHelper.getData(url: EndPoints.HOME, token: token).then((value) async {
       print('value.data: ${value.data}');
 
       homeModel = HomeModel.fromJson(value.data);
@@ -123,7 +123,7 @@ class HomeCubit extends Cubit<HomeState> {
   Future logout() async {
     emit(LogoutLoadingState());
     DioHelper.postData(
-            url: LOGOUT,
+            url: EndPoints.LOGOUT,
             data: {
               'deviceToken': fcmToken,
             },

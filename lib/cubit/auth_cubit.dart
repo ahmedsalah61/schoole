@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:schoole/constants.dart';
-
 import 'package:dio/dio.dart';
 import 'package:schoole/models/error_model.dart';
 import 'package:schoole/models/login_model.dart';
@@ -15,6 +14,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   static AuthCubit get(context) => BlocProvider.of(context);
 
+  // ================= Password Visibility =================
   bool isPassword = true;
   IconData suffix = Icons.visibility_off;
 
@@ -24,8 +24,8 @@ class AuthCubit extends Cubit<AuthState> {
     emit(ChangePasswordVisibility());
   }
 
-  var ratioButtonWidth = 0.4;
-
+  // ================= Button Animation =================
+  double ratioButtonWidth = 0.4;
   bool isAnimated = false;
 
   void animateTheButton() {
@@ -33,81 +33,104 @@ class AuthCubit extends Cubit<AuthState> {
     emit(AnimateTheButton());
   }
 
-  LoginModel? loginModel;
-
-  void login({
-    required String email,
-    required String password,
-  }) {
-    isAnimated = true;
-    emit(LoginLoadingState());
-    DioHelper.postData(
-      url: LOGIN,
-      data: {
-        'email': email,
-        'password': password,
-      },
-    ).then((value) {
-      loginModel = LoginModel.fromJson(value.data);
-      print(loginModel!.status);
-      print(loginModel!.message);
-
-      String role = loginModel!.data!.user!.role!;
-
-      if (role == 'Teacher') {
-        isteacher = true;
-        isparent = false;
-        print(isteacher);
-      } else if (role == 'Parent') {
-        isparent = true;
-        isteacher = false;
-        print(isparent);
-      } else {
-        isparent = false;
-        isteacher = false;
-      }
-
-      ratioButtonWidth = 0.4;
-      isAnimated = false;
-
-      emit(LoginSuccessState(loginModel!));
-    }).catchError((error) {
-      if (error is DioException) {
-        print(error.response?.data);
-        if (error.response?.data != null) {
-          loginModel = LoginModel.fromJson(error.response!.data);
-          emit(LoginErrorState(loginModel!));
-        } else {
-          // Create a generic error model or handle it
-          emit(LoginErrorState(LoginModel.fromJson(
-              {'status': false, 'message': error.message, 'data': null})));
-        }
-      } else {
-        print(error.toString());
-        // Handle generic error
-        emit(LoginErrorState(LoginModel.fromJson(
-            {'status': false, 'message': error.toString(), 'data': null})));
-      }
-    });
+  void _resetButton() {
+    ratioButtonWidth = 0.4;
+    isAnimated = false;
   }
 
+  // ================= Login =================
+  LoginModel? loginModel;
+
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
+    isAnimated = true;
+    emit(LoginLoadingState());
+
+    try {
+      final response = await DioHelper.postData(
+        url: EndPoints.login,
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      loginModel = LoginModel.fromJson(response.data);
+
+      final role = loginModel?.user?.role?.toLowerCase();
+
+      if (role == 'teacher') {
+        isteacher = true;
+        isparent = false;
+      } else if (role == 'parent') {
+        isparent = true;
+        isteacher = false;
+      } else {
+        isteacher = false;
+        isparent = false;
+      }
+
+      _resetButton();
+      emit(LoginSuccessState(loginModel!));
+    } on DioException catch (error) {
+      print("LOGIN ERROR: ${error.response?.data}");
+
+      if (error.response?.data != null) {
+        loginModel = LoginModel.fromJson(error.response!.data);
+        emit(LoginErrorState(loginModel!));
+      } else {
+        emit(LoginErrorState(
+          LoginModel.fromJson({
+            'status': false,
+            'message': error.message ?? 'Something went wrong',
+            'data': null
+          }),
+        ));
+      }
+
+      _resetButton();
+    } catch (error) {
+      print("UNKNOWN ERROR: $error");
+
+      emit(LoginErrorState(
+        LoginModel.fromJson({
+          'status': false,
+          'message': error.toString(),
+          'data': null
+        }),
+      ));
+
+      _resetButton();
+    }
+  }
+
+  // ================= Register Notification =================
   ErrorModel? errorModel;
 
-  Future registerNotification(
-      {required String userId, required String deviceToken}) async {
+  Future<void> registerNotification({
+    required String userId,
+    required String deviceToken,
+  }) async {
     emit(RegisterNotificationsLoadingState());
-    DioHelper.postData(
-      url: 'addDeviceToken',
-      data: {
-        'user_id': userId,
-        'token': deviceToken,
-      },
-    ).then((value) {
+
+    try {
+      await DioHelper.postData(
+        url: 'addDeviceToken', // Make sure this exists in backend
+        data: {
+          'user_id': userId,
+          'token': deviceToken,
+        },
+      );
+
       emit(RegisterNotificationsSuccessState());
-    }).catchError((error) {
-      //errorModel = LoginModel.fromJson(error.response.data);
+    } on DioException catch (error) {
+      print("NOTIFICATION ERROR: ${error.response?.data}");
       emit(RegisterNotificationsErrorState());
-      print(error.toString());
-    });
+    } catch (error) {
+      print("UNKNOWN ERROR: $error");
+      emit(RegisterNotificationsErrorState());
+    }
   }
 }
